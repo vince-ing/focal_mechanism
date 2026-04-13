@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focal Mechanism & Fault Kinematics Decoder</title>
+<style>
+  :root {
+    --bg-main: #f3f4f6;
+    --bg-panel: #ffffff;
+    --bg-card: #ffffff;
+    --bg-input: #f9fafb;
+    --text-main: #111827;
+    --text-muted: #6b7280;
+    --text-sub: #4b5563;
+    --border-color: #e5e7eb;
+    --accent-blue: #2563eb;
+    --accent-blue-light: #eff6ff;
+    --accent-red: #dc2626;
+    --accent-red-light: #fef2f2;
+    --radius-lg: 12px;
+    --radius-md: 8px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-main: #0f1115;
+      --bg-panel: #181b21;
+      --bg-card: #1f232b;
+      --bg-input: #111318;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-sub: #d1d5db;
+      --border-color: #374151;
+      --accent-blue: #3b82f6;
+      --accent-blue-light: #1e3a8a;
+      --accent-red: #ef4444;
+      --accent-red-light: #7f1d1d;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background-color: var(--bg-main); color: var(--text-main); font-family: var(--font-sans); line-height: 1.5; padding: 24px; }
+  
+  .header { margin-bottom: 24px; }
+  .header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .header p { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start; max-width: 1400px; margin: 0 auto; }
+  
+  .panel { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); }
+  
+  .sec-label { font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .sec-label::after { content: ''; height: 1px; background: var(--border-color); flex-grow: 1; }
+  
+  .preset-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .preset-btn { font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); cursor: pointer; transition: all 0.2s; }
+  .preset-btn:hover { border-color: var(--accent-blue); background: var(--accent-blue-light); color: var(--accent-blue); }
+
+  .param-row { margin-bottom: 20px; }
+  .param-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .param-name { font-size: 14px; font-weight: 600; }
+  .param-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--accent-blue); background: var(--accent-blue-light); border-radius: var(--radius-sm); padding: 2px 8px; min-width: 54px; text-align: center; }
+  
+  /* Custom Range Slider */
+  input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; height: 20px; }
+  input[type="range"]:focus { outline: none; }
+  input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: var(--border-color); border-radius: 4px; }
+  input[type="range"]::-webkit-slider-thumb { height: 16px; width: 16px; border-radius: 50%; background: var(--accent-blue); cursor: pointer; -webkit-appearance: none; margin-top: -5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid var(--bg-panel); }
+  
+  .data-card { background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px; }
+  .data-main { font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
+  .data-sub { font-size: 13px; color: var(--text-muted); font-style: italic; }
+  
+  .np-row { margin-bottom: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+  .np-row:last-child { margin-bottom: 0; }
+  .np-tag { font-family: var(--font-sans); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; align-self: flex-start; text-transform: uppercase; letter-spacing: 0.05em; }
+  .np-tag.t1 { background: var(--accent-blue-light); color: var(--accent-blue); }
+  .np-tag.t2 { background: var(--accent-red-light); color: var(--accent-red); }
+  .np-data { font-family: var(--font-mono); color: var(--text-sub); font-size: 13px; font-weight: 500; }
+
+  .param-val {
+  /* Add these to the existing .param-val class */
+  cursor: text;
+  outline: none;
+  transition: box-shadow 0.2s ease;
+  }
+
+ .param-val:focus {
+  /* New pseudo-class */
+  box-shadow: 0 0 0 2px var(--accent-blue);
+  }
+
+  .viz-area { display: flex; flex-direction: column; gap: 24px; }
+  
+  .viz-card { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); }
+  .viz-title { font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  
+  .stereo-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 32px; align-items: center; justify-items: center; }
+  .canvas-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .canvas-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  
+  .legend-mini { background: var(--bg-input); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-size: 12px; color: var(--text-sub); line-height: 2; min-width: 160px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .legend-line { width: 24px; height: 3px; display: inline-block; border-radius: 2px; }
+  .legend-dash { width: 24px; height: 0; display: inline-block; border-top: 3px dashed var(--accent-red); }
+
+  .map-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .map-box { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .map-info { text-align: center; }
+  .map-data { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .badge-ss { background: var(--accent-blue-light); color: var(--accent-blue); }
+  .badge-nm { background: #fff4e5; color: #d97706; }
+  .badge-rv { background: #ecfdf5; color: #059669; }
+  .badge-ob { background: var(--bg-input); color: var(--text-sub); border: 1px solid var(--border-color); }
+
+  /* Full Legend Styles */
+  .symbology-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 16px; }
+  .sym-item { display: flex; gap: 16px; align-items: center; background: var(--bg-input); padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); }
+  .sym-icon { flex-shrink: 0; width: 48px; height: 48px; display: flex; justify-content: center; align-items: center; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border-color); }
+  .sym-text { display: flex; flex-direction: column; }
+  .sym-title { font-size: 13px; font-weight: 700; color: var(--text-main); }
+  .sym-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+
+  canvas, svg { display: block; max-width: 100%; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Focal Mechanism & Kinematics Decoder</h1>
+  <p>Interactive stereonet projection and structural map symbol generator.</p>
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <div class="sec-label">Quick Presets</div>
+    <div class="preset-row">
+      <button class="preset-btn" onclick="setPreset(0,90,180)">Strike-slip RL</button>
+      <button class="preset-btn" onclick="setPreset(0,90,0)">Strike-slip LL</button>
+      <button class="preset-btn" onclick="setPreset(0,45,-90)">Normal</button>
+      <button class="preset-btn" onclick="setPreset(0,45,90)">Reverse</button>
+      <button class="preset-btn" onclick="setPreset(139,90,27)">Oblique</button>
+    </div>
+
+    <div class="sec-label">Fault Parameters</div>
+    <div class="param-row">
+        <div class="param-header"><span class="param-name">Strike (φ)</span><span class="param-val" id="sv" contenteditable="true" onblur="syncVal(this, 'strike', 0, 360)" onkeydown="checkEnter(event, this)">0°</span></div>      <input type="range" id="strike" min="0" max="360" value="0" step="1" oninput="update()">
+    </div>
+    <div class="param-row">
+<div class="param-header"><span class="param-name">Dip (δ)</span><span class="param-val" id="dv" contenteditable="true" onblur="syncVal(this, 'dip', 1, 89)" onkeydown="checkEnter(event, this)">90°</span></div>      <input type="range" id="dip" min="1" max="89" value="90" step="1" oninput="update()">
+    </div>
+    <div class="param-row">
+<div class="param-header"><span class="param-name">Rake (λ)</span><span class="param-val" id="rv" contenteditable="true" onblur="syncVal(this, 'rake', -180, 180)" onkeydown="checkEnter(event, this)">180°</span></div>      <input type="range" id="rake" min="-180" max="180" value="180" step="1" oninput="update()">
+    </div>
+
+    <div class="sec-label" style="margin-top: 32px;">Regime Classification</div>
+    <div class="data-card">
+      <div class="data-main" id="ft-main">Strike-slip</div>
+      <div class="data-sub" id="ft-sub">Right-lateral (dextral)</div>
+    </div>
+
+    <div class="sec-label">Calculated Nodal Planes</div>
+    <div class="data-card">
+      <div class="np-row"><span class="np-tag t1">NP 1 (Input Plane)</span><span class="np-data" id="np1-data">—</span></div>
+      <div class="np-row" style="margin-top: 12px;"><span class="np-tag t2">NP 2 (Auxiliary)</span><span class="np-data" id="np2-data">—</span></div>
+    </div>
+
+    <div class="sec-label">Principal Stress Axes</div>
+    <div class="data-card" style="margin-bottom:0">
+      <div class="np-row"><span class="np-tag t2" style="color:var(--text-main); background:var(--border-color);">P Axis (Max Compression)</span><span class="np-data" id="p-axis">—</span></div>
+      <div class="np-row" style="margin-top: 12px;"><span class="np-tag t1" style="color:var(--text-main); background:var(--border-color);">T Axis (Max Tension)</span><span class="np-data" id="t-axis">—</span></div>
+    </div>
+  </div>
+
+  <div class="viz-area">
+    
+    <div class="viz-card">
+      <div class="viz-title">Lower Hemisphere Projections</div>
+      <div class="stereo-grid">
+        <div class="canvas-wrap">
+          <canvas id="bbc" width="240" height="240"></canvas>
+          <div class="canvas-label">Focal Mechanism (Beach Ball)</div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="snc" width="240" height="240"></canvas>
+          <div class="canvas-label">Schmidt Net (Nodal Planes)</div>
+        </div>
+        <div class="legend-mini">
+          <div class="legend-item"><span class="legend-line" style="background:var(--accent-blue);"></span> NP 1 (Fault)</div>
+          <div class="legend-item"><span class="legend-dash"></span> NP 2 (Aux)</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--accent-red);"></span> P-Axis</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--accent-blue);"></span> T-Axis</div>
+          <div style="margin-top: 8px; font-size: 11px; opacity: 0.8; line-height:1.4;">
+            Dark = Compression (+)<br>Light = Dilatation (-)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="viz-card">
+      <div class="viz-title">Structural Map View Traces (Plan View)</div>
+      <div class="map-grid">
+        <div class="map-box">
+          <svg id="m1s" width="260" height="200" viewBox="0 0 260 200"></svg>
+          <div class="map-info">
+            <div class="map-data" id="m1l">—</div>
+            <span class="badge badge-ss" id="m1b">—</span>
+          </div>
+        </div>
+        <div class="map-box">
+          <svg id="m2s" width="260" height="200" viewBox="0 0 260 200"></svg>
+          <div class="map-info">
+            <div class="map-data" id="m2l">—</div>
+            <span class="badge badge-ss" id="m2b">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+   <div class="viz-card">
+      <div class="viz-title">Cross-Section Profiles (Perpendicular to Strike)</div>
+      <div class="map-grid">
+        <div class="map-box">
+          <svg id="p1s" width="260" height="200" viewBox="0 0 260 200"></svg>
+          <div class="map-info">
+            <div class="map-data" id="p1l">—</div>
+          </div>
+        </div>
+        <div class="map-box">
+          <svg id="p2s" width="260" height="200" viewBox="0 0 260 200"></svg>
+          <div class="map-info">
+            <div class="map-data" id="p2l">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="viz-card">
+      <div class="viz-title">Symbology Guide</div>
+      <div class="symbology-grid">
+        <div class="sym-item">
+          <div class="sym-icon"><svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#111827" stroke="#6b7280" stroke-width="1"/></svg></div>
+          <div class="sym-text"><span class="sym-title">Compression Quadrant</span><span class="sym-desc">First motion is UP. Plotted in black/dark on beach ball.</span></div>
+        </div>
+        <div class="sym-item">
+          <div class="sym-icon"><svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#ffffff" stroke="#6b7280" stroke-width="1"/></svg></div>
+          <div class="sym-text"><span class="sym-title">Dilatation Quadrant</span><span class="sym-desc">First motion is DOWN. Plotted in white/light on beach ball.</span></div>
+        </div>
+        <div class="sym-item">
+          <div class="sym-icon">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <line x1="20" y1="5" x2="20" y2="35" stroke="var(--accent-blue)" stroke-width="2.5"/>
+              <polygon points="20,15 28,20 20,25" fill="var(--accent-blue)"/>
+              <polygon points="20,25 28,30 20,35" fill="var(--accent-blue)"/>
+            </svg>
+          </div>
+          <div class="sym-text"><span class="sym-title">Reverse / Thrust Teeth</span><span class="sym-desc">Teeth point toward the hanging wall (the upthrown block).</span></div>
+        </div>
+        <div class="sym-item">
+          <div class="sym-icon">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <line x1="20" y1="5" x2="20" y2="35" stroke="var(--accent-blue)" stroke-width="2.5"/>
+              <line x1="20" y1="15" x2="28" y2="15" stroke="var(--accent-blue)" stroke-width="1.5"/>
+              <circle cx="28" cy="15" r="2" fill="var(--accent-blue)"/>
+              <line x1="20" y1="25" x2="28" y2="25" stroke="var(--accent-blue)" stroke-width="1.5"/>
+              <circle cx="28" cy="25" r="2" fill="var(--accent-blue)"/>
+            </svg>
+          </div>
+          <div class="sym-text"><span class="sym-title">Normal Hachures (Ticks)</span><span class="sym-desc">Ticks point toward the hanging wall (the downthrown block).</span></div>
+        </div>
+        <div class="sym-item">
+          <div class="sym-icon">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <line x1="20" y1="5" x2="20" y2="35" stroke="var(--accent-blue)" stroke-width="2.5"/>
+              <line x1="15" y1="12" x2="15" y2="28" stroke="var(--accent-blue)" stroke-width="1.5"/>
+              <polygon points="15,12 11,18 15,18" fill="var(--accent-blue)"/>
+              <line x1="25" y1="12" x2="25" y2="28" stroke="var(--accent-blue)" stroke-width="1.5"/>
+              <polygon points="25,28 29,22 25,22" fill="var(--accent-blue)"/>
+            </svg>
+          </div>
+          <div class="sym-text"><span class="sym-title">Strike-Slip Shear</span><span class="sym-desc">Half-arrows indicate relative lateral motion of the blocks.</span></div>
+        </div>
+        <div class="sym-item">
+          <div class="sym-icon">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <line x1="5" y1="20" x2="16" y2="20" stroke="var(--text-main)" stroke-width="2"/>
+              <polygon points="16,20 12,16 12,24" fill="var(--text-main)"/>
+              <line x1="35" y1="20" x2="24" y2="20" stroke="var(--text-main)" stroke-width="2"/>
+              <polygon points="24,20 28,16 28,24" fill="var(--text-main)"/>
+            </svg>
+          </div>
+          <div class="sym-text"><span class="sym-title">Kinematic Stress</span><span class="sym-desc">Large arrows show regional max compression or extension.</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const DEG = Math.PI / 180;
+const rad = d => d * DEG;
+const deg = r => r / DEG;
+const n360 = a => ((a % 360) + 360) % 360;
+const n180 = a => { a = n360(a); return a >= 180 ? a - 360 : a; };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function faultVectors(strike, dip, rake) {
+  const s = rad(strike), d = rad(dip), r = rad(rake);
+  const nx = -Math.sin(d) * Math.sin(s);
+  const ny =  Math.sin(d) * Math.cos(s);
+  const nz = -Math.cos(d);
+  const lx =  Math.cos(r) * Math.cos(s) + Math.sin(r) * Math.cos(d) * Math.sin(s);
+  const ly =  Math.cos(r) * Math.sin(s) - Math.sin(r) * Math.cos(d) * Math.cos(s);
+  const lz = -Math.sin(r) * Math.sin(d);
+  return { n: [nx, ny, nz], l: [lx, ly, lz] };
+}
+
+function syncVal(el, sliderId, min, max) {
+  // Strip out the degree symbol or any letters, keeping only digits and minus signs
+  let val = parseInt(el.textContent.replace(/[^\d-]/g, ''), 10);
+  const slider = document.getElementById(sliderId);
+  
+  // If the user typed gibberish, revert to the slider's current value
+  if (isNaN(val)) {
+    val = parseInt(slider.value, 10);
+  } else {
+    // Clamp the number to prevent math errors in the stereonet
+    val = clamp(val, min, max);
+  }
+  
+  // Set the hidden slider value and trigger the main update pipeline
+  slider.value = val;
+  update(); // This will naturally redraw everything and re-append the "°" symbol
+}
+
+// Allows the user to press 'Enter' to submit their typed value
+function checkEnter(e, el) {
+  if (e.key === 'Enter') {
+    e.preventDefault(); // Prevents a new line from being created in the span
+    el.blur();          // Triggers the onblur event above to save and sync
+  }
+}
+
+function vec2sdr(n, l) {
+  let nx = n[0], ny = n[1], nz = n[2];
+  let lx = l[0], ly = l[1], lz = l[2];
+  if (nz > 0) { nx = -nx; ny = -ny; nz = -nz; lx = -lx; ly = -ly; lz = -lz; }
+  let dip = deg(Math.acos(clamp(-nz, -1, 1)));
+  let strike_deg = dip < 0.01 ? 0 : n360(deg(Math.atan2(-nx, ny)));
+  const sr = rad(strike_deg), dr = rad(dip);
+  const strDir = [Math.cos(sr), Math.sin(sr), 0];
+  const dipDir = [-Math.cos(dr)*Math.sin(sr), Math.cos(dr)*Math.cos(sr), Math.sin(dr)];
+  const ss = lx*strDir[0] + ly*strDir[1] + lz*strDir[2];
+  const ds = -(lx*dipDir[0] + ly*dipDir[1] + lz*dipDir[2]);
+  let rake_deg = Math.round(n180(deg(Math.atan2(ds, ss))));
+  return { strike: Math.round(strike_deg), dip: Math.round(dip), rake: rake_deg };
+}
+
+function auxPlane(s, d, r) {
+  const { n, l } = faultVectors(s, d, r);
+  return vec2sdr(l, n);
+}
+
+function lproj(az_deg, inc_deg, R = 110) {
+  const a = rad(az_deg), i = rad(inc_deg);
+  const r = R * Math.SQRT2 * Math.sin(i / 2);
+  return [r * Math.sin(a), -r * Math.cos(a)];
+}
+
+function classify(rake) {
+  const r = n180(rake), a = Math.abs(r);
+  const isLL = Math.cos(rad(r)) > 0; 
+  if (a <= 20 || a >= 160) {
+    return isLL
+      ? { main:'Strike-slip', sub:'Left-lateral (sinistral)', cls:'ss', sense:'Left-lateral' }
+      : { main:'Strike-slip', sub:'Right-lateral (dextral)', cls:'ss', sense:'Right-lateral' };
+  }
+  if (a >= 70 && a <= 110) {
+    return r > 0
+      ? { main:'Reverse / thrust', sub:'Compressional Regime', cls:'rv', sense:'Reverse' }
+      : { main:'Normal', sub:'Extensional Regime', cls:'nm', sense:'Normal' };
+  }
+  return r > 0
+    ? { main:'Oblique-reverse', sub: isLL ? 'Strike-slip (LL) + reverse' : 'Strike-slip (RL) + reverse', cls:'ob', sense: isLL ? 'Reverse-LL' : 'Reverse-RL' }
+    : { main:'Oblique-normal', sub: isLL ? 'Strike-slip (LL) + normal' : 'Strike-slip (RL) + normal', cls:'ob', sense: isLL ? 'Normal-LL' : 'Normal-RL' };
+}
+
+function badgeCls(cls) {
+  return { ss:'badge-ss', nm:'badge-nm', rv:'badge-rv', ob:'badge-ob' }[cls] || 'badge-ob';
+}
+
+function isDark() { return window.matchMedia('(prefers-color-scheme: dark)').matches; }
+
+function getColors() {
+  const dark = isDark();
+  const root = getComputedStyle(document.documentElement);
+  return {
+    compression: dark ? '#111827' : '#111827',
+    tension: dark ? '#ffffff' : '#ffffff',
+    border: root.getPropertyValue('--border-color').trim(),
+    plane1: root.getPropertyValue('--accent-blue').trim(), 
+    plane2: root.getPropertyValue('--accent-red').trim(),
+    pAxis: root.getPropertyValue('--accent-red').trim(), 
+    tAxis: root.getPropertyValue('--accent-blue').trim(),
+    gridLine: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
+    textMuted: root.getPropertyValue('--text-muted').trim(),
+    bg: root.getPropertyValue('--bg-panel').trim(),
+  };
+}
+
+function hexToRgb(hex) {
+  if(hex.length === 4) hex = '#' + hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3];
+  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+}
+
+function drawBB(strike, dip, rake) {
+  const c = document.getElementById('bbc');
+  const ctx = c.getContext('2d');
+  const W=240, H=240, R=110, CX=W/2, CY=H/2;
+  const colors = getColors();
+  ctx.clearRect(0,0,W,H);
+  
+  const {n, l} = faultVectors(strike, dip, rake);
+  const img = ctx.createImageData(W,H);
+  
+  for (let py=0; py<H; py++) {
+    for (let px=0; px<W; px++) {
+      const x=px-CX, y=py-CY;
+      if (x*x+y*y>R*R) continue;
+      const rr = Math.sqrt(x*x+y*y)/R;
+      const inc_r = 2*Math.asin(clamp(rr/Math.SQRT2, -1, 1));
+      const az_r = Math.atan2(x, -y);
+      const vN = Math.sin(inc_r)*Math.cos(az_r);
+      const vE = Math.sin(inc_r)*Math.sin(az_r);
+      const vD = Math.cos(inc_r);
+      const nv = n[0]*vN + n[1]*vE + n[2]*vD;
+      const lv = l[0]*vN + l[1]*vE + l[2]*vD;
+      const comp = nv * lv >= 0;
+      const idx = (py*W + px)*4;
+      const rgb = hexToRgb(comp ? colors.compression : colors.tension);
+      img.data[idx]=rgb[0]; img.data[idx+1]=rgb[1]; img.data[idx+2]=rgb[2]; img.data[idx+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  
+  ctx.save(); ctx.globalCompositeOperation='destination-in';
+  ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2); ctx.fill(); ctx.restore();
+  
+  ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2);
+  ctx.strokeStyle = '#6b7280'; ctx.lineWidth=1.5; ctx.stroke();
+  
+  drawNPCanvas(ctx, strike, dip, colors.plane1, 2.5, R, CX, CY, false);
+  const a2 = auxPlane(strike, dip, rake);
+  drawNPCanvas(ctx, a2.strike, a2.dip, colors.plane2, 2, R, CX, CY, true);
+  drawPTCanvas(ctx, strike, dip, rake, R, CX, CY);
+  
+  ctx.font='600 12px Inter, sans-serif'; ctx.fillStyle=colors.textMuted; ctx.textAlign='center';
+  ctx.fillText('N',CX,CY-R-8); ctx.fillText('S',CX,CY+R+18);
+  ctx.fillText('E',CX+R+14,CY+5); ctx.fillText('W',CX-R-14,CY+5);
+}
+
+function drawNPCanvas(ctx, strike, dip, color, lw, R, CX, CY, dashed) {
+  const sr=rad(strike), dr=rad(dip);
+  const u = [Math.cos(sr), Math.sin(sr), 0];
+  const v = [-Math.cos(dr)*Math.sin(sr), Math.cos(dr)*Math.cos(sr), Math.sin(dr)];
+  ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=lw;
+  if (dashed) ctx.setLineDash([8,4]); else ctx.setLineDash([]);
+  
+  let moved=false, lx=0, ly=0;
+  for (let t=0; t<=180; t++) {
+    const a = rad(t);
+    const pD = Math.cos(a)*u[2] + Math.sin(a)*v[2];
+    const inc = deg(Math.acos(clamp(pD, -1, 1)));
+    const az = n360(deg(Math.atan2(Math.cos(a)*u[1] + Math.sin(a)*v[1], Math.cos(a)*u[0] + Math.sin(a)*v[0])));
+    const [sx,sy] = lproj(az, inc, R);
+    const x=CX+sx, y=CY+sy;
+    const gap = moved && Math.sqrt((x-lx)**2 + (y-ly)**2) > 20;
+    if (!moved || gap) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    moved=true; lx=x; ly=y;
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+}
+
+function drawPTCanvas(ctx, strike, dip, rake, R, CX, CY) {
+  const {n,l} = faultVectors(strike,dip,rake);
+  const nm = v => { const m = Math.sqrt(v.reduce((s,x)=>s+x*x,0)); return v.map(x=>x/m); };
+  const colors = getColors();
+  
+  [
+    [nm([n[0]-l[0], n[1]-l[1], n[2]-l[2]]), 'P', colors.pAxis],
+    [nm([n[0]+l[0], n[1]+l[1], n[2]+l[2]]), 'T', colors.tAxis]
+  ].forEach(([ax,label,col]) => {
+    let [vx,vy,vz] = ax;
+    if (vz < 0) { vx=-vx; vy=-vy; vz=-vz; } 
+    const inc = deg(Math.acos(clamp(vz, -1, 1)));
+    const az = n360(deg(Math.atan2(vy, vx)));
+    const [sx,sy] = lproj(az, inc, R);
+    const x=CX+sx, y=CY+sy;
+    ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2);
+    ctx.fillStyle=col; ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle=col; ctx.font='bold 13px Inter, sans-serif';
+    ctx.textAlign='left'; ctx.fillText(label,x+8,y+5);
+  });
+}
+
+function drawStereonet(strike, dip, rake) {
+  const c=document.getElementById('snc');
+  const ctx=c.getContext('2d');
+  const W=240, H=240, R=110, CX=W/2, CY=H/2;
+  const colors=getColors();
+  ctx.clearRect(0,0,W,H);
+  
+  ctx.save(); ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2);
+  ctx.fillStyle=colors.bg; ctx.fill(); ctx.restore();
+  
+  ctx.strokeStyle=colors.gridLine; ctx.lineWidth=1;
+  for (let az=0; az<360; az+=30) {
+    ctx.beginPath(); let moved=false, lx=0, ly=0;
+    for (let inc=0; inc<=90; inc+=2) {
+      const [x,y]=lproj(az,inc,R);
+      const px=CX+x, py=CY+y;
+      if(!moved){ctx.moveTo(px,py);moved=true;}
+      else{const gap=Math.sqrt((px-lx)**2+(py-ly)**2)>20;if(gap)ctx.moveTo(px,py);else ctx.lineTo(px,py);}
+      lx=px;ly=py;
+    }
+    ctx.stroke();
+  }
+  for (const rinc of [30,60]) {
+    ctx.beginPath();
+    for (let az=0; az<=360; az++) {
+      const [x,y]=lproj(az,rinc,R);
+      if(az===0)ctx.moveTo(CX+x,CY+y);else ctx.lineTo(CX+x,CY+y);
+    }
+    ctx.stroke();
+  }
+  
+  drawNPCanvas(ctx,strike,dip,colors.plane1,2.5,R,CX,CY,false);
+  const a2=auxPlane(strike,dip,rake);
+  drawNPCanvas(ctx,a2.strike,a2.dip,colors.plane2,2,R,CX,CY,true);
+  drawPTCanvas(ctx,strike,dip,rake,R,CX,CY);
+  
+  ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2);
+  ctx.strokeStyle='#6b7280'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.font='600 12px Inter, sans-serif'; ctx.fillStyle=colors.textMuted; ctx.textAlign='center';
+  ctx.fillText('N',CX,CY-R-8); ctx.fillText('S',CX,CY+R+18);
+  ctx.fillText('E',CX+R+14,CY+5); ctx.fillText('W',CX-R-14,CY+5);
+}
+
+function ns(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k,v));
+  return el;
+}
+
+function drawMap(svgId, strike, dip, rake, isAux) {
+  const svg = document.getElementById(svgId); svg.innerHTML='';
+  const W=260, H=200, cx=130, cy=100;
+  const dark = isDark();
+  const root = getComputedStyle(document.documentElement);
+  const color = isAux ? root.getPropertyValue('--accent-red').trim() : root.getPropertyValue('--accent-blue').trim();
+  const gridCol = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
+
+  for (let x=10; x<W; x+=20) svg.appendChild(ns('line',{x1:x,y1:0,x2:x,y2:H,stroke:gridCol,'stroke-width':1}));
+  for (let y=10; y<H; y+=20) svg.appendChild(ns('line',{x1:0,y1:y,x2:W,y2:y,stroke:gridCol,'stroke-width':1}));
+
+  const arrowCol = dark ? '#9ca3af' : '#6b7280';
+  const cn=ns('text',{x:20,y:H-10,'font-size':12,'font-weight':'700', fill:arrowCol,'text-anchor':'middle','font-family':'Inter, sans-serif'});
+  cn.textContent='N'; svg.appendChild(cn);
+  svg.appendChild(ns('line',{x1:20,y1:H-26,x2:20,y2:H-12,stroke:arrowCol,'stroke-width':2}));
+  svg.appendChild(ns('polygon',{points:`20,${H-32} 16,${H-22} 24,${H-22}`,fill:arrowCol}));
+
+  const s = rad(strike);
+  const sUx = Math.sin(s), sUy = -Math.cos(s);
+  const dUx = Math.cos(s), dUy = Math.sin(s);
+
+  const fLen = 160;
+  const x1=cx-sUx*fLen/2, y1=cy-sUy*fLen/2;
+  const x2=cx+sUx*fLen/2, y2=cy+sUy*fLen/2;
+
+  svg.appendChild(ns('line',{ x1:x1.toFixed(1),y1:y1.toFixed(1),x2:x2.toFixed(1),y2:y2.toFixed(1), stroke:color,'stroke-width':isAux?2:3,'stroke-dasharray':isAux?'8,5':'none' }));
+
+  const rn = n180(rake);
+  const ssC = Math.cos(rad(rn));
+  const dsC = Math.sin(rad(rn));
+
+  if (Math.abs(ssC) > 0.05) {
+    const offset = 18;
+    const aLen = 15 + 15*Math.abs(ssC);
+    const shiftX = sUx * 45;
+    const shiftY = sUy * 45;
+    const baseX = cx - shiftX;
+    const baseY = cy - shiftY;
+    
+    const hwOx = dUx*offset, hwOy = dUy*offset;
+    const hwDx = ssC*sUx, hwDy = ssC*sUy;
+    
+    // Explicitly lock the barb to the outward facing edge
+    const barbSide = ssC > 0 ? 1 : -1;
+
+    svgArrow(svg, baseX+hwOx-hwDx*aLen/2, baseY+hwOy-hwDy*aLen/2, baseX+hwOx+hwDx*aLen/2, baseY+hwOy+hwDy*aLen/2, color, 10, 2, true, barbSide);
+    
+    const fwOx = -dUx*offset, fwOy = -dUy*offset;
+    const fwDx = -ssC*sUx, fwDy = -ssC*sUy;
+    svgArrow(svg, baseX+fwOx-fwDx*aLen/2, baseY+fwOy-fwDy*aLen/2, baseX+fwOx+fwDx*aLen/2, baseY+fwOy+fwDy*aLen/2, color, 10, 2, true, barbSide);
+  }
+
+  if (Math.abs(dsC) > 0.05) {
+    const reverse = dsC > 0;
+    const step = fLen / 6;
+    for (let i=-2; i<=2; i++) {
+      const bx = cx + sUx*step*i;
+      const by = cy + sUy*step*i;
+      if (reverse) {
+        const pts = `${(bx-sUx*6).toFixed(1)},${(by-sUy*6).toFixed(1)} ${(bx+sUx*6).toFixed(1)},${(by+sUy*6).toFixed(1)} ${(bx+dUx*12).toFixed(1)},${(by+dUy*12).toFixed(1)}`;
+        svg.appendChild(ns('polygon', {points: pts, fill: color}));
+      } else {
+        svg.appendChild(ns('line',{ x1:bx.toFixed(1),y1:by.toFixed(1), x2:(bx+dUx*12).toFixed(1),y2:(by+dUy*12).toFixed(1), stroke:color,'stroke-width':1.5}));
+        svg.appendChild(ns('circle', { cx:(bx+dUx*12).toFixed(1), cy:(by+dUy*12).toFixed(1), r:2.5, fill:color}));
+      }
+    }
+    const arrowDist = 22; 
+    const arrowLen = 22;  
+    
+    // Explicitly link the stress arrows to the primary text color (black/white depending on theme)
+    const stressColor = dark ? '#f3f4f6' : '#111827';
+    
+    if (reverse) {
+      svgArrow(svg, cx + dUx*(arrowDist+arrowLen), cy + dUy*(arrowDist+arrowLen), cx + dUx*arrowDist, cy + dUy*arrowDist, stressColor, 9, 2.5);
+      svgArrow(svg, cx - dUx*(arrowDist+arrowLen), cy - dUy*(arrowDist+arrowLen), cx - dUx*arrowDist, cy - dUy*arrowDist, stressColor, 9, 2.5);
+    } else {
+      svgArrow(svg, cx + dUx*arrowDist, cy + dUy*arrowDist, cx + dUx*(arrowDist+arrowLen), cy + dUy*(arrowDist+arrowLen), stressColor, 9, 2.5);
+      svgArrow(svg, cx - dUx*arrowDist, cy - dUy*arrowDist, cx - dUx*(arrowDist+arrowLen), cy - dUy*(arrowDist+arrowLen), stressColor, 9, 2.5);
+    }
+  }
+
+  const tcx = cx + sUx * 45;
+  const tcy = cy + sUy * 45;
+  const tickEnd = 18;
+  svg.appendChild(ns('line',{ x1:tcx.toFixed(1), y1:tcy.toFixed(1), x2:(tcx+dUx*tickEnd).toFixed(1), y2:(tcy+dUy*tickEnd).toFixed(1), stroke:color, 'stroke-width':2, 'stroke-opacity':0.7}));
+  const dipLbl=ns('text',{ x:(tcx+dUx*32).toFixed(1), y:(tcy+dUy*32+4).toFixed(1), 'font-size':11, 'fill':color, 'text-anchor':'middle', 'font-family':'var(--font-mono)', 'font-weight':'700'});
+  dipLbl.textContent=dip+'°';
+  svg.appendChild(dipLbl);
+}
+
+function drawInOut(g, x, y, isCross, color) {
+  g.appendChild(ns('circle', {cx:x.toFixed(1), cy:y.toFixed(1), r:6, fill:'none', stroke:color, 'stroke-width':1.5}));
+  if (isCross) {
+    g.appendChild(ns('line', {x1:(x-4).toFixed(1), y1:(y-4).toFixed(1), x2:(x+4).toFixed(1), y2:(y+4).toFixed(1), stroke:color, 'stroke-width':1.5}));
+    g.appendChild(ns('line', {x1:(x-4).toFixed(1), y1:(y+4).toFixed(1), x2:(x+4).toFixed(1), y2:(y-4).toFixed(1), stroke:color, 'stroke-width':1.5}));
+  } else {
+    g.appendChild(ns('circle', {cx:x.toFixed(1), cy:y.toFixed(1), r:2, fill:color}));
+  }
+}
+
+function drawProfile(svgId, dip, rake, isAux) {
+  const svg = document.getElementById(svgId); svg.innerHTML='';
+  const dark = isDark();
+  const root = getComputedStyle(document.documentElement);
+  const color = isAux ? root.getPropertyValue('--accent-red').trim() : root.getPropertyValue('--accent-blue').trim();
+  const textCol = dark ? '#f3f4f6' : '#111827';
+  const bgCard = root.getPropertyValue('--bg-card').trim();
+  const borderCol = root.getPropertyValue('--border-color').trim();
+
+  // Create clipping path to keep the fault line neatly inside the sub-surface box
+  const clipId = 'clip_' + svgId;
+  const defs = ns('defs', {});
+  const cp = ns('clipPath', {id: clipId});
+  cp.appendChild(ns('rect', {x:20, y:30, width:220, height:140, rx:4}));
+  defs.appendChild(cp);
+  svg.appendChild(defs);
+
+  // Draw Sub-surface bounds and Ground surface line
+  svg.appendChild(ns('rect', {x:20, y:30, width:220, height:140, fill:bgCard, stroke:borderCol, rx:4}));
+  svg.appendChild(ns('line', {x1:20, y1:30, x2:240, y2:30, stroke:borderCol, 'stroke-width':4}));
+  
+  const g = ns('g', {'clip-path': `url(#${clipId})`});
+  
+  // Dynamic starting X coordinate: Steep dips start near center, shallow dips start far left
+  const cx = 40 + (dip / 90) * 90;
+  const cy = 30; // Fault hits surface at top
+  const radDip = rad(dip);
+  const fdx = Math.cos(radDip), fdy = Math.sin(radDip);
+  const fLen = 300; // Increased length to ensure it cuts through the whole box
+
+  // Draw dipping fault line
+  g.appendChild(ns('line', {
+    x1: cx.toFixed(1), y1: cy.toFixed(1), x2: (cx + fdx*fLen).toFixed(1), y2: (cy + fdy*fLen).toFixed(1),
+    stroke: color, 'stroke-width': isAux?2:3, 'stroke-dasharray': isAux?'8,5':'none'
+  }));
+
+  // Dynamically calculate label distance so it stays visible at low angles
+  // Aim for a depth of ~60px, but cap the distance along the fault at 110px
+  const midDist = Math.min(110, 60 / Math.sin(radDip));
+  const mx = cx + fdx * midDist;
+  const my = cy + fdy * midDist;
+
+  // Calculate the vector normal to the fault plane (pointing into the Hanging Wall)
+  const nx = Math.sin(radDip), ny = -Math.cos(radDip);
+
+  // Draw Hanging Wall (HW) and Footwall (FW) Labels (distance slightly tightened)
+  const hwDist = 30;
+  const txtOpts = {'font-size':12, 'font-weight':700, fill:textCol, 'text-anchor':'middle', 'font-family':'var(--font-sans)', opacity:0.6};
+  const hwTxt = ns('text', {x:mx + nx*hwDist, y:my + ny*hwDist + 4, ...txtOpts}); hwTxt.textContent = 'HW'; g.appendChild(hwTxt);
+  const fwTxt = ns('text', {x:mx - nx*hwDist, y:my - ny*hwDist + 4, ...txtOpts}); fwTxt.textContent = 'FW'; g.appendChild(fwTxt);
+
+  // Resolve kinematic vectors
+  const rn = n180(rake);
+  const ssC = Math.cos(rad(rn));
+  const dsC = Math.sin(rad(rn));
+  const kDist = 16; // slightly tighter 
+
+  // Draw Strike-Slip motion markers (Into / Out of page)
+  if (Math.abs(ssC) > 0.05) {
+    const isLL = ssC > 0;
+    drawInOut(g, mx + nx*kDist - fdx*22, my + ny*kDist - fdy*22, isLL, color);
+    drawInOut(g, mx - nx*kDist - fdx*22, my - ny*kDist - fdy*22, !isLL, color);
+  }
+
+  // Draw Dip-Slip motion arrows (Parallel to fault)
+  if (Math.abs(dsC) > 0.05) {
+    const isRev = dsC > 0;
+    const aLen = 20;
+    const aDx = isRev ? -fdx : fdx; 
+    const aDy = isRev ? -fdy : fdy;
+    
+    // HW arrow
+    svgArrow(g, mx + nx*kDist + fdx*15 - aDx*aLen/2, my + ny*kDist + fdy*15 - aDy*aLen/2, 
+                mx + nx*kDist + fdx*15 + aDx*aLen/2, my + ny*kDist + fdy*15 + aDy*aLen/2, color, 8, 2);
+    // FW arrow
+    svgArrow(g, mx - nx*kDist + fdx*15 + aDx*aLen/2, my - ny*kDist + fdy*15 + aDy*aLen/2, 
+                mx - nx*kDist + fdx*15 - aDx*aLen/2, my - ny*kDist + fdy*15 - aDy*aLen/2, color, 8, 2);
+  }
+
+  svg.appendChild(g);
+}
+function svgArrow(svg, x1, y1, x2, y2, color, aSize, sw = 2, isHalf = false, halfSide = 1) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 2) return;
+  const ux = dx / len, uy = dy / len;
+  const px = -uy, py = ux;
+  const ax = x2 - ux * aSize, ay = y2 - uy * aSize;
+  
+  let pts;
+  if (isHalf) {
+    // Generate true half-arrow by plotting the flat edge straight back to the shaft line
+    pts = `${x2.toFixed(1)},${y2.toFixed(1)} ${(ax + px * aSize * 0.5 * halfSide).toFixed(1)},${(ay + py * aSize * 0.5 * halfSide).toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)}`;
+  } else {
+    pts = `${x2.toFixed(1)},${y2.toFixed(1)} ${(ax + px * aSize * 0.42).toFixed(1)},${(ay + py * aSize * 0.42).toFixed(1)} ${(ax - px * aSize * 0.42).toFixed(1)},${(ay - py * aSize * 0.42).toFixed(1)}`;
+  }
+  
+  svg.appendChild(ns('line', { x1: x1.toFixed(1), y1: y1.toFixed(1), x2: x2.toFixed(1), y2: y2.toFixed(1), stroke: color, 'stroke-width': sw }));
+  svg.appendChild(ns('polygon', { points: pts, fill: color }));
+}
+
+function axisStr(strike,dip,rake,which) {
+  const {n,l}=faultVectors(strike,dip,rake);
+  const nm=v=>{const m=Math.sqrt(v.reduce((s,x)=>s+x*x,0));return v.map(x=>x/m);};
+  const P=nm([n[0]-l[0],n[1]-l[1],n[2]-l[2]]);
+  const T=nm([n[0]+l[0],n[1]+l[1],n[2]+l[2]]);
+  const ax=which==='P'?P:T;
+  let [vx,vy,vz]=ax;
+  if(vz<0){vx=-vx;vy=-vy;vz=-vz;}
+  const plunge=Math.round(deg(Math.asin(clamp(vz,-1,1))));
+  const trend=Math.round(n360(deg(Math.atan2(vy,vx))));
+  return `Trend ${trend}°, Plunge ${plunge}°`;
+}
+
+function update() {
+  const s=+document.getElementById('strike').value;
+  const d=+document.getElementById('dip').value;
+  const r=+document.getElementById('rake').value;
+
+  document.getElementById('sv').textContent=s+'°';
+  document.getElementById('dv').textContent=d+'°';
+  document.getElementById('rv').textContent=r+'°';
+
+  const cls=classify(r);
+  document.getElementById('ft-main').textContent=cls.main;
+  document.getElementById('ft-sub').textContent=cls.sub;
+
+  const a2=auxPlane(s,d,r);
+  document.getElementById('np1-data').textContent=`Strike ${s}°, Dip ${d}°, Rake ${r}°`;
+  document.getElementById('np2-data').textContent=`Strike ${a2.strike}°, Dip ${a2.dip}°, Rake ${a2.rake}°`;
+  document.getElementById('p-axis').textContent=axisStr(s,d,r,'P');
+  document.getElementById('t-axis').textContent=axisStr(s,d,r,'T');
+  document.getElementById('m1l').textContent=`S ${s}° | D ${d}° | R ${r}°`;
+  document.getElementById('m2l').textContent=`S ${a2.strike}° | D ${a2.dip}° | R ${a2.rake}°`;
+
+  const cls2=classify(a2.rake);
+  const b1=document.getElementById('m1b');
+  const b2=document.getElementById('m2b');
+  b1.textContent=cls.sense;  b1.className='badge '+badgeCls(cls.cls);
+  b2.textContent=cls2.sense; b2.className='badge '+badgeCls(cls2.cls);
+
+  drawBB(s,d,r);
+  drawStereonet(s,d,r);
+  drawMap('m1s',s,d,r,false);
+  drawMap('m2s',a2.strike,a2.dip,a2.rake,true);
+
+  document.getElementById('p1l').textContent = `Cross-section (NP 1)`;
+  document.getElementById('p2l').textContent = `Cross-section (NP 2)`;
+
+  drawProfile('p1s', d, r, false);
+  drawProfile('p2s', a2.dip, a2.rake, true);
+}
+
+function setPreset(s,d,r) {
+  document.getElementById('strike').value=s;
+  document.getElementById('dip').value=d;
+  document.getElementById('rake').value=r;
+  update();
+}
+
+update();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', update);
+</script>
+</body>
+</html>
