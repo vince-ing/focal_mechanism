@@ -948,10 +948,12 @@ function drawMap(svgId,strike,dip,rake,isAux){
   const gridCol=isDark()?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.04)';
   for(let x=10;x<W;x+=20)svg.appendChild(ns('line',{x1:x,y1:0,x2:x,y2:H,stroke:gridCol,'stroke-width':1}));
   for(let y=10;y<H;y+=20)svg.appendChild(ns('line',{x1:0,y1:y,x2:W,y2:y,stroke:gridCol,'stroke-width':1}));
-  const nLbl=ns('text',{x:22,y:H-10,'font-size':11,'font-weight':'600',fill:col.text3,'text-anchor':'middle','font-family':'IBM Plex Sans, sans-serif'});
+  // North arrow — top-left corner, clear of the fault line
+  const nax=20,nay=26,naLen=16;
+  svg.appendChild(ns('line',{x1:nax,y1:nay,x2:nax,y2:nay-naLen,stroke:col.text3,'stroke-width':1.5}));
+  svg.appendChild(ns('polygon',{points:`${nax},${nay-naLen} ${nax-4},${nay-naLen+7} ${nax+4},${nay-naLen+7}`,fill:col.text3}));
+  const nLbl=ns('text',{x:nax,y:nay+10,'font-size':10,'font-weight':'700',fill:col.text3,'text-anchor':'middle','font-family':'IBM Plex Sans, sans-serif'});
   nLbl.textContent='N';svg.appendChild(nLbl);
-  svg.appendChild(ns('line',{x1:22,y1:H-24,x2:22,y2:H-13,stroke:col.text3,'stroke-width':1.5}));
-  svg.appendChild(ns('polygon',{points:`22,${H-30} 18,${H-20} 26,${H-20}`,fill:col.text3}));
   const s=rad(strike);
   const sUx=Math.sin(s),sUy=-Math.cos(s),dUx=Math.cos(s),dUy=Math.sin(s);
   const fLen=155,x1=cx-sUx*fLen/2,y1=cy-sUy*fLen/2,x2=cx+sUx*fLen/2,y2=cy+sUy*fLen/2;
@@ -1010,7 +1012,14 @@ function drawInOut(g,x,y,isCross,color){
   }
 }
 
-function drawProfile(svgId,dip,rake,isAux){
+function bearingLabel(az){
+  // Snap a 0-360 bearing to the nearest 8-point compass label
+  const pts=['N','NE','E','SE','S','SW','W','NW'];
+  const idx=Math.round(((az%360)+360)%360/45)%8;
+  return pts[idx];
+}
+
+function drawProfile(svgId,strike,dip,rake,isAux){
   const svg=document.getElementById(svgId);svg.innerHTML='';
   const col=getColors();
   const color=isAux?col.np2:col.np1;
@@ -1037,13 +1046,7 @@ function drawProfile(svgId,dip,rake,isAux){
   const txtOpts={'font-size':10,'font-weight':'600',fill:col.text2,'text-anchor':'middle','font-family':'IBM Plex Sans, sans-serif',opacity:0.5};
   const hwT=ns('text',{x:(mx+nx*hwD).toFixed(1),y:(my+ny*hwD+4).toFixed(1),...txtOpts});hwT.textContent='HW';g.appendChild(hwT);
   const fwT=ns('text',{x:(mx-nx*hwD).toFixed(1),y:(my-ny*hwD+4).toFixed(1),...txtOpts});fwT.textContent='FW';g.appendChild(fwT);
-  // Up/down indicator on HW side based on dip-slip component
   const rn=n180(rake),ssC=Math.cos(rad(rn)),dsC=Math.sin(rad(rn)),kD=15;
-  if(Math.abs(dsC)>0.05){
-    const isRev=dsC>0;
-    const hwMot=ns('text',{x:(mx+nx*(hwD+13)).toFixed(1),y:(my+ny*(hwD+13)+4).toFixed(1),'font-size':9,'font-weight':'700',fill:color,'text-anchor':'middle','font-family':'IBM Plex Sans, sans-serif',opacity:'0.9'});
-    hwMot.textContent=isRev?'↑':'↓';g.appendChild(hwMot);
-  }
   if(Math.abs(ssC)>0.05){
     drawInOut(g,mx+nx*kD-fdx*22,my+ny*kD-fdy*22,ssC>0,color);
     drawInOut(g,mx-nx*kD-fdx*22,my-ny*kD-fdy*22,ssC<=0,color);
@@ -1060,6 +1063,29 @@ function drawProfile(svgId,dip,rake,isAux){
   const dipTxt=ns('text',{x:(cx+42*Math.cos(dipMidAngle)).toFixed(1),y:(cy+42*Math.sin(dipMidAngle)+4).toFixed(1),'font-size':10,fill:color,'text-anchor':'middle','font-family':'Space Mono, monospace','font-weight':'700'});
   dipTxt.textContent=dip+'°';g.appendChild(dipTxt);
   svg.appendChild(g);
+
+  // Cross-section faces perpendicular to strike.
+  // The profile view looks from the strike direction, so:
+  //   left side of profile = looking in direction (strike + 90°) = dip direction
+  //   right side = opposite = (strike + 270°)
+  // We label what compass direction each wall faces.
+  const dipAz=n360(strike+90);   // dip azimuth
+  const oppAz=n360(strike+270);  // opposite
+  const lblLeft=bearingLabel(oppAz);   // left wall of section
+  const lblRight=bearingLabel(dipAz);  // right wall (dip direction)
+  const dirOpts={'font-size':10,'font-weight':'700',fill:col.text3,'font-family':'IBM Plex Sans, sans-serif'};
+  // Left label — stalk pointing left, letter above
+  const lx=18,ly=97;
+  svg.appendChild(ns('line',{x1:lx,y1:ly,x2:lx,y2:ly-12,stroke:col.text3,'stroke-width':1.5}));
+  svg.appendChild(ns('polygon',{points:`${lx},${ly-12} ${lx-3},${ly-5} ${lx+3},${ly-5}`,fill:col.text3}));
+  const lLbl=ns('text',{x:lx,y:ly+10,...dirOpts,'text-anchor':'middle'});
+  lLbl.textContent=lblLeft;svg.appendChild(lLbl);
+  // Right label — stalk pointing right, letter above
+  const rx=242,ry=97;
+  svg.appendChild(ns('line',{x1:rx,y1:ry,x2:rx,y2:ry-12,stroke:col.text3,'stroke-width':1.5}));
+  svg.appendChild(ns('polygon',{points:`${rx},${ry-12} ${rx-3},${ry-5} ${rx+3},${ry-5}`,fill:col.text3}));
+  const rLbl=ns('text',{x:rx,y:ry+10,...dirOpts,'text-anchor':'middle'});
+  rLbl.textContent=lblRight;svg.appendChild(rLbl);
 }
 
 function axisStr(strike,dip,rake,which){
@@ -1116,8 +1142,8 @@ function update(){
   drawStereonet(s,d,r);
   drawMap('m1s',s,d,r,false);
   drawMap('m2s',a2.strike,a2.dip,a2.rake,true);
-  drawProfile('p1s',d,r,false);
-  drawProfile('p2s',a2.dip,a2.rake,true);
+  drawProfile('p1s',s,d,r,false);
+  drawProfile('p2s',a2.strike,a2.dip,a2.rake,true);
 }
 
 function setPreset(s,d,r){
