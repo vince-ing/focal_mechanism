@@ -217,7 +217,7 @@ export function drawStereonet(canvasId, strike, dip, rake) {
   drawCompass(ctx, CX, CY, R, col.text3);
 }
 
-export function svgArrow(svg, x1, y1, x2, y2, color, aSize, sw = 2, isHalf = false, halfSide = 1) {
+export function svgArrow(svg, x1, y1, x2, y2, color, aSize, sw = 2, isHalf = false, halfSide = 1, drawShaft = true) {
   const dx = x2 - x1, dy = y2 - y1, len = Math.sqrt(dx * dx + dy * dy);
   if (len < 2) return;
   const ux = dx / len, uy = dy / len, px = -uy, py = ux;
@@ -228,7 +228,10 @@ export function svgArrow(svg, x1, y1, x2, y2, color, aSize, sw = 2, isHalf = fal
   } else {
     pts = `${x2.toFixed(1)},${y2.toFixed(1)} ${(ax + px * aSize * 0.42).toFixed(1)},${(ay + py * aSize * 0.42).toFixed(1)} ${(ax - px * aSize * 0.42).toFixed(1)},${(ay - py * aSize * 0.42).toFixed(1)}`;
   }
-  svg.appendChild(ns('line', { x1: x1.toFixed(1), y1: y1.toFixed(1), x2: x2.toFixed(1), y2: y2.toFixed(1), stroke: color, 'stroke-width': sw }));
+  
+  if (drawShaft) {
+    svg.appendChild(ns('line', { x1: x1.toFixed(1), y1: y1.toFixed(1), x2: x2.toFixed(1), y2: y2.toFixed(1), stroke: color, 'stroke-width': sw }));
+  }
   svg.appendChild(ns('polygon', { points: pts, fill: color }));
 }
 
@@ -258,10 +261,26 @@ export function drawMap(svgId, strike, dip, rake, isAux, colors) {
   const rn = n180(rake), ssC = Math.cos(rad(rn)), dsC = Math.sin(rad(rn));
   
   if (Math.abs(ssC) > 0.05) {
-    const offset = 18, aLen = 15 + 15 * Math.abs(ssC), shiftX = sUx * 40, shiftY = sUy * 40;
+    // By setting the base length to 9 (the exact size of the arrowhead), 
+    // the stem smoothly shrinks to 0 before disappearing completely.
+    const offset = 18, aLen = 9 + 21 * Math.abs(ssC), shiftX = sUx * 40, shiftY = sUy * 40;
     const baseX = cx - shiftX, baseY = cy - shiftY, barbSide = ssC > 0 ? 1 : -1;
-    svgArrow(svg, baseX + dUx * offset - ssC * sUx * aLen / 2, baseY + dUy * offset - ssC * sUy * aLen / 2, baseX + dUx * offset + ssC * sUx * aLen / 2, baseY + dUy * offset + ssC * sUy * aLen / 2, color, 9, 1.8, true, barbSide);
-    svgArrow(svg, baseX - dUx * offset + ssC * sUx * aLen / 2, baseY - dUy * offset + ssC * sUy * aLen / 2, baseX - dUx * offset - ssC * sUx * aLen / 2, baseY - dUy * offset - ssC * sUy * aLen / 2, color, 9, 1.8, true, barbSide);
+    const ssDir = Math.sign(ssC); 
+
+    svgArrow(svg, 
+      baseX + dUx * offset - ssDir * sUx * aLen / 2, 
+      baseY + dUy * offset - ssDir * sUy * aLen / 2, 
+      baseX + dUx * offset + ssDir * sUx * aLen / 2, 
+      baseY + dUy * offset + ssDir * sUy * aLen / 2, 
+      color, 9, 1.8, true, barbSide
+    );
+    svgArrow(svg, 
+      baseX - dUx * offset + ssDir * sUx * aLen / 2, 
+      baseY - dUy * offset + ssDir * sUy * aLen / 2, 
+      baseX - dUx * offset - ssDir * sUx * aLen / 2, 
+      baseY - dUy * offset - ssDir * sUy * aLen / 2, 
+      color, 9, 1.8, true, barbSide
+    );
   }
   
   if (Math.abs(dsC) > 0.05) {
