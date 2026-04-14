@@ -73,6 +73,7 @@ function buildBlocks(T, strike, dip) {
     fw: convexHullGeometry(T, [...fwCorners, ...crossings]),
     faultNormal: n,
     crossings,
+    BX, BY, BZ,
   };
 }
 
@@ -126,10 +127,9 @@ function sortPolygon(T, points, normal) {
   });
 }
 
-// ─── Disposal — tag objects with a userData flag so we catch everything ───────
+// ─── Disposal ────────────────────────────────────────────────────────────────
 function taggedAdd(scene, obj) {
   obj.userData.disposable = true;
-  // ArrowHelper is a Group; tag all children too
   obj.traverse(child => { child.userData.disposable = true; });
   scene.add(obj);
 }
@@ -140,7 +140,6 @@ function disposeObjects(st) {
   st.scene.traverse(obj => {
     if (obj.userData.disposable) toRemove.push(obj);
   });
-  // Remove top-level tagged objects only (children come along automatically)
   for (const obj of toRemove) {
     if (obj.parent === st.scene) {
       st.scene.remove(obj);
@@ -149,6 +148,66 @@ function disposeObjects(st) {
     if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
     else obj.material?.dispose();
   }
+}
+
+// ─── Find the centroid of a block face identified by an outward normal ────────
+// Returns the average position of all geometry vertices whose face normal
+// best matches `faceDir`, clamped to lie on that face's bounding plane.
+function getFaceCentroid(T, geo, faceDir) {
+  const pos = geo.attributes.position;
+  const fd  = faceDir.clone().normalize();
+  let best = -Infinity;
+  // Find the extreme projection value in faceDir
+  for (let i = 0; i < pos.count; i++) {
+    const v = new T.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+    const d = v.dot(fd);
+    if (d > best) best = d;
+  }
+  // Collect vertices on that face
+  const onFace = [];
+  for (let i = 0; i < pos.count; i++) {
+    const v = new T.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+    if (v.dot(fd) > best - 0.01) onFace.push(v);
+  }
+  if (!onFace.length) return new T.Vector3();
+  const c = new T.Vector3();
+  onFace.forEach(v => c.add(v));
+  c.divideScalar(onFace.length);
+  return c;
+}
+
+// ─── Place a motion arrow on a visible face of a block ───────────────────────
+// blockGeo  — BufferGeometry of that block (in local space, before offset)
+// blockPos  — the world-space offset Vector3
+// faceDir   — outward face normal to place the arrow on (world space)
+// arrowDir  — direction the arrow should point (the slip component projected onto face)
+// color     — THREE.Color
+// st.scene  — scene to add into
+function addFaceArrow(T, st, blockGeo, blockPos, faceDir, arrowDir, color) {
+  const arrowLen  = 0.55;
+  const arrowHead = 0.16;
+  const arrowW    = 0.07;
+
+  // Get face centroid in local block space, then shift to world
+  const localCentroid = getFaceCentroid(T, blockGeo, faceDir);
+  const worldCentroid = localCentroid.clone().add(blockPos);
+
+  // Push arrow origin slightly off the face surface so it's visible
+  const origin = worldCentroid.clone().addScaledVector(faceDir.clone().normalize(), 0.04);
+
+  // Center the arrow shaft on the origin (ArrowHelper places tail at origin)
+  // Shift origin back by half arrow length so arrow is centered on face centroid
+  const tailOrigin = origin.clone().addScaledVector(arrowDir.clone().normalize(), -arrowLen * 0.5);
+
+  const arrow = new T.ArrowHelper(
+    arrowDir.clone().normalize(),
+    tailOrigin,
+    arrowLen,
+    color,
+    arrowHead,
+    arrowW
+  );
+  taggedAdd(st.scene, arrow);
 }
 
 // ─── Main draw ────────────────────────────────────────────────────────────────
@@ -187,7 +246,6 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
     updateCamera(st);
     setupOrbitControls(canvas, st);
 
-    // Lights are permanent — not tagged disposable
     st.scene.add(new T.AmbientLight(0xffffff, 0.65));
     const dir = new T.DirectionalLight(0xffffff, 0.75);
     dir.position.set(3, 6, 4);
@@ -195,7 +253,6 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
   }
   st.renderer.setSize(W, H, false);
 
-  // ── Dispose ALL previously tagged objects ──
   disposeObjects(st);
 
   const { hw, fw, faultNormal, crossings } = buildBlocks(T, strike, dip);
@@ -227,14 +284,14 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
     const sorted = sortPolygon(T, crossings, faultNormal);
 
     for (const off of [hwOffset, fwOffset]) {
-      const loop   = [...sorted, sorted[0]];
+      const loop    = [...sorted, sorted[0]];
       const lineGeo = new T.BufferGeometry().setFromPoints(loop);
       const line    = new T.Line(lineGeo, new T.LineBasicMaterial({ color: accentColor }));
       line.position.copy(off);
       taggedAdd(st.scene, line);
     }
 
-    // Fault fill — fan from centroid
+    // Fault fill
     const fc = new T.Vector3();
     sorted.forEach(p => fc.add(p));
     fc.divideScalar(sorted.length);
@@ -252,30 +309,57 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
     taggedAdd(st.scene, fillMesh);
   }
 
-  // ── Slip arrows ──
-  // Place arrows on the fault surface centroid, offset to each block face.
-  // Use a larger size and push them slightly away from the fault so they're not buried.
-  const faultCentroid = new T.Vector3();
-  if (crossings.length) {
-    crossings.forEach(p => faultCentroid.add(p));
-    faultCentroid.divideScalar(crossings.length);
+  // ── Motion arrows ─────────────────────────────────────────────────────────
+  const aColor = new T.Color(accentColor);
+
+  const slipHoriz = new T.Vector3(slip.x, 0, slip.z);
+  const horizMag  = slipHoriz.length();
+  const vertMag   = Math.abs(slip.y);
+  const totalMag  = Math.sqrt(horizMag * horizMag + vertMag * vertMag);
+  const hasDip    = totalMag > 0.001 && (vertMag  / totalMag) > 0.25;
+  const hasStrike = totalMag > 0.001 && (horizMag / totalMag) > 0.25;
+
+  const arrowLen  = 0.45;
+  const arrowHead = 0.14;
+  const arrowW    = 0.06;
+
+  // ── Dip-slip arrows ───────────────────────────────────────────────────────
+  // Block box is always BX=1, BY=0.75, BZ=1.
+  // Front face is Z=+1. HW block is the one with higher Y (hanging wall, on
+  // the fault-normal side). FW block has lower Y.
+  //
+  // Place one arrow on the front face of each block:
+  //   • HW arrow: centred at (0, +BY*0.4, BZ+nudge) in block-local space
+  //   • FW arrow: centred at (0, -BY*0.4, BZ+nudge)
+  // Then add each block's world offset.
+  // Direction: straight up for the block moving up, straight down for the other.
+  if (hasDip) {
+    const nudge = 0.06;
+    const BZ = 1.0;
+    const BY = 0.75;
+
+    // Project slip onto the front face plane (Z=1, normal = +Z)
+    // Remove the Z component so arrow lies flat on the front face
+    const frontNormal = new T.Vector3(0, 0, 1);
+    const slipOnFront = slip.clone().sub(frontNormal.clone().multiplyScalar(slip.dot(frontNormal))).normalize();
+    const slipOnFrontNeg = slipOnFront.clone().negate();
+
+    // HW block: upper part of front face
+    const hwFront = new T.Vector3(0,  BY * 0.35, BZ + nudge).add(hwOffset);
+    // FW block: lower part of front face
+    const fwFront = new T.Vector3(0, -BY * 0.35, BZ + nudge).add(fwOffset);
+
+    taggedAdd(st.scene, new T.ArrowHelper(slipOnFront,    hwFront.clone().addScaledVector(slipOnFront,    -arrowLen*0.5), arrowLen, aColor, arrowHead, arrowW));
+    taggedAdd(st.scene, new T.ArrowHelper(slipOnFrontNeg, fwFront.clone().addScaledVector(slipOnFrontNeg, -arrowLen*0.5), arrowLen, aColor, arrowHead, arrowW));
   }
 
-  const arrowLen  = 0.60;
-  const arrowHead = 0.18;
-  const arrowW    = 0.08;
-  const aColor    = new T.Color(accentColor);
-
-  // Pull the arrows slightly outward from the fault plane so they're fully visible
-  const pull = 0.08;
-  const hwArrowOrigin = faultCentroid.clone().add(slip.clone().multiplyScalar(offset + pull));
-  const fwArrowOrigin = faultCentroid.clone().add(slip.clone().multiplyScalar(-(offset + pull)));
-
-  const arrowHW = new T.ArrowHelper(slip.clone(),          hwArrowOrigin, arrowLen, aColor, arrowHead, arrowW);
-  const arrowFW = new T.ArrowHelper(slip.clone().negate(), fwArrowOrigin, arrowLen, aColor, arrowHead, arrowW);
-
-  taggedAdd(st.scene, arrowHW);
-  taggedAdd(st.scene, arrowFW);
+  // ── Strike-slip arrows: TOP face only, and only when no dip component ──
+  if (hasStrike && !hasDip) {
+    const upFace  = new T.Vector3(0, 1, 0);
+    const slipTop = new T.Vector3(slip.x, 0, slip.z).normalize();
+    addFaceArrow(T, st, hw, hwOffset, upFace, slipTop,          aColor);
+    addFaceArrow(T, st, fw, fwOffset, upFace, slipTop.negate(), aColor);
+  }
 
   startLoop(st);
 }
