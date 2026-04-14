@@ -268,7 +268,8 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
   const { hw, fw, faultNormal, crossings } = buildBlocks(T, strike, dip);
   const { slip } = getFaultVectorsThree(T, strike, dip, rake);
 
-  const offset   = 0.15;
+  // Increased offset significantly to make vertical (and lateral) displacement highly visible
+  const offset   = 0.35; 
   const hwOffset = slip.clone().multiplyScalar( offset);
   const fwOffset = slip.clone().multiplyScalar(-offset);
 
@@ -321,6 +322,10 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
 
   // ── Motion arrows ─────────────────────────────────────────────────────────
   const aColor = new T.Color(accentColor);
+  
+  // Clone the base color and darken it by 40% for the dip-slip profile arrows
+  const dsColor = aColor.clone().multiplyScalar(0.20); 
+  
   const rakeRad = rad(rake);
   const ssComp  = Math.cos(rakeRad);
   const dsComp  = Math.sin(rakeRad);
@@ -331,20 +336,18 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
   // ── Dip-slip arrows (Profile face) ──
   if (hasDip) {
     const strikeRad = rad(strike);
-    // Dynamically switch the dip cross-section to the Right face (X=1) if strike is mostly East-West
     const useRightFace = Math.abs(Math.sin(strikeRad)) > Math.abs(Math.cos(strikeRad));
     const dipFace = useRightFace ? new T.Vector3(1, 0, 0) : new T.Vector3(0, 0, 1);
     
-    // Cross product defines the exact intersection line (fault seam) on that face
     let traceDip = new T.Vector3().crossVectors(faultNormal, dipFace);
     if (traceDip.lengthSq() > 0.001) {
       traceDip.normalize();
-      // Align arrow exactly to the trace, matching the slip vector's general direction
       const sign = slip.dot(traceDip) >= 0 ? 1 : -1;
       const dsDir = traceDip.multiplyScalar(sign);
       
-      addFaceArrow(T, st, hw, hwOffset, dipFace, dsDir, aColor);
-      addFaceArrow(T, st, fw, fwOffset, dipFace, dsDir.clone().negate(), aColor);
+      // Use the darker color (dsColor)
+      addFaceArrow(T, st, hw, hwOffset, dipFace, dsDir, dsColor);
+      addFaceArrow(T, st, fw, fwOffset, dipFace, dsDir.clone().negate(), dsColor);
     }
   }
 
@@ -352,33 +355,31 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
   if (hasStrike) {
     const upFace  = new T.Vector3(0, 1, 0);
     
-    // Cross product guarantees the top arrows are perfectly parallel to the fault trace
     let traceTop = new T.Vector3().crossVectors(faultNormal, upFace);
     if (traceTop.lengthSq() > 0.001) {
       traceTop.normalize();
       const sign = slip.dot(traceTop) >= 0 ? 1 : -1;
       const ssDir = traceTop.multiplyScalar(sign);
       
+      // Use the standard brighter color (aColor)
       addFaceArrow(T, st, hw, hwOffset, upFace, ssDir, aColor);
       addFaceArrow(T, st, fw, fwOffset, upFace, ssDir.clone().negate(), aColor);
     }
   }
 
   // ── North Arrow ───────────────────────────────────────────────────────────
-  // Offset further out: X=-1.6, Z=1.6
-  const nOrigin = new T.Vector3(-1.6, -0.75, 1.6); 
+  const nOrigin = new T.Vector3(-1.6, -0.75, 0.8); 
   const nDir    = new T.Vector3(0, 0, -1);
-  const nLen    = 0.5;
+  const nLen    = 0.35;
   const uiColor = new T.Color(edgeColor);
-  
-  const nArrow = new T.ArrowHelper(nDir, nOrigin, nLen, uiColor, 0.15, 0.1);
+  const nArrow = new T.ArrowHelper(nDir, nOrigin, nLen, uiColor, 0.2, 0.16);
   taggedAdd(st.scene, nArrow);
 
   const canvasN = document.createElement('canvas');
   canvasN.width = 64; 
   canvasN.height = 64;
   const ctxN = canvasN.getContext('2d');
-  ctxN.font = 'bold 36px "IBM Plex Sans", sans-serif';
+  ctxN.font = 'bold 40px "IBM Plex Sans", sans-serif';
   ctxN.fillStyle = edgeColor;
   ctxN.textAlign = 'center';
   ctxN.textBaseline = 'middle';
@@ -388,8 +389,8 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
   const matN = new T.SpriteMaterial({ map: texN, depthTest: false, transparent: true });
   const spriteN = new T.Sprite(matN);
   
-  spriteN.position.copy(nOrigin).add(new T.Vector3(0, 0, -nLen - 0.15));
-  spriteN.scale.set(0.35, 0.35, 0.35);
+  spriteN.position.copy(nOrigin).add(new T.Vector3(0, 0, -nLen - 0.2));
+  spriteN.scale.set(0.48, 0.48, 0.48);
   spriteN.renderOrder = 999; 
   taggedAdd(st.scene, spriteN);
 
