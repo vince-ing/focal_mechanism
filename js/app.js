@@ -165,7 +165,7 @@ function syncVal(spanId, stateKey, sliderId, min, max) {
 }
 
 syncVal('sv', 'strike', 'strike', 0, 360);
-syncVal('dv', 'dip',    'dip',    1, 89);
+syncVal('dv', 'dip',    'dip',    0, 90);
 syncVal('rv', 'rake',   'rake',  -180, 180);
 
 // ─── Preset buttons (event delegation) ────────────────────────────────────────

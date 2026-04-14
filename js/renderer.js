@@ -371,7 +371,7 @@ export function drawProfile(svgId, strike, dip, rake, isAux, colors) {
   surfLbl.textContent = 'surface'; svg.appendChild(surfLbl);
   
   const g = ns('g', { 'clip-path': `url(#${clipId})` });
-  const gridCol = isDark() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+  const gridCol = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
   for (let x = 20; x < 240; x += 20) g.appendChild(ns('line', { x1: x, y1: 28, x2: x, y2: 166, stroke: gridCol, 'stroke-width': 1 }));
   for (let y = 28; y < 166; y += 20) g.appendChild(ns('line', { x1: 20, y1: y, x2: 240, y2: y, stroke: gridCol, 'stroke-width': 1 }));
   
@@ -414,8 +414,12 @@ export function drawProfile(svgId, strike, dip, rake, isAux, colors) {
   const lxHW = cx + fdx * tLbl, lyHW = cy + fdy * tLbl;
   const hwTxtD = 22;
   const txtOpts = { 'font-size': 10, 'font-weight': '600', fill: col.text2, 'text-anchor': 'middle', 'font-family': 'IBM Plex Sans, sans-serif', opacity: 0.5 };
-  const hwT = ns('text', { x: (lxHW + nx * hwTxtD).toFixed(1), y: (lyHW + ny * hwTxtD + 4).toFixed(1), ...txtOpts }); hwT.textContent = 'HW'; g.appendChild(hwT);
-  const fwT = ns('text', { x: (lxHW - nx * hwTxtD).toFixed(1), y: (lyHW - ny * hwTxtD + 4).toFixed(1), ...txtOpts }); fwT.textContent = 'FW'; g.appendChild(fwT);
+  
+  // Only render HW and FW labels if the fault is not completely vertical
+  if (dip !== 90) {
+    const hwT = ns('text', { x: (lxHW + nx * hwTxtD).toFixed(1), y: (lyHW + ny * hwTxtD + 4).toFixed(1), ...txtOpts }); hwT.textContent = 'HW'; g.appendChild(hwT);
+    const fwT = ns('text', { x: (lxHW - nx * hwTxtD).toFixed(1), y: (lyHW - ny * hwTxtD + 4).toFixed(1), ...txtOpts }); fwT.textContent = 'FW'; g.appendChild(fwT);
+  }
   
   const dipAnglePath = `M ${(cx + fdx * 30).toFixed(1)} ${(cy + fdy * 30).toFixed(1)} A 30 30 0 0 0 ${(cx + 30).toFixed(1)} ${cy.toFixed(1)}`;
   g.appendChild(ns('path', { d: dipAnglePath, fill: 'none', stroke: color, opacity: '0.4', 'stroke-width': 1, 'stroke-dasharray': '2,2' }));
