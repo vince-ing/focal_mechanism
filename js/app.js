@@ -3,6 +3,7 @@
 import { clamp, n180 } from './utils.js';
 import { classify, auxPlane, axisStr } from './geophysics.js';
 import { drawBB, drawStereonet, drawMap, drawProfile } from './renderer.js';
+import { draw3DBlock, stop3DLoop } from './renderer3d.js';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -10,6 +11,7 @@ const state = {
   strike: 0,
   dip: 90,
   rake: 180,
+  viewMode: '2d',  // '2d' | '3d'
 };
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
@@ -20,6 +22,39 @@ const el = id => document.getElementById(id);
 
 function badgeCls(cls) {
   return { ss: 'b-ss', nm: 'b-nm', rv: 'b-rv', ob: 'b-ob' }[cls] || 'b-ob';
+}
+
+// ─── View mode switching ──────────────────────────────────────────────────────
+
+function setViewMode(mode) {
+  state.viewMode = mode;
+
+  const is3d = mode === '3d';
+
+  // Toggle visibility of SVG vs canvas elements
+  document.querySelectorAll('.profile-2d').forEach(el => {
+    el.style.display = is3d ? 'none' : '';
+  });
+  document.querySelectorAll('.profile-3d').forEach(el => {
+    el.style.display = is3d ? 'block' : 'none';
+  });
+
+  // Toggle hint text and card tag
+  el('hint-3d').style.display = is3d ? 'flex' : 'none';
+  el('profile-card-tag').textContent = is3d ? 'Block diagram · drag to orbit' : 'Perpendicular to strike';
+
+  // Update toggle button states
+  document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+
+  // Stop 3D loops if switching back to 2D
+  if (!is3d) {
+    stop3DLoop('p1c');
+    stop3DLoop('p2c');
+  }
+
+  update();
 }
 
 // ─── Core update pipeline ─────────────────────────────────────────────────────
@@ -71,14 +106,30 @@ function update() {
   el('hd-regime').textContent = cls.main + ' — ' + cls.sub;
   el('hd-params').textContent = `φ ${s}°  δ ${d}°  λ ${r}°`;
 
-  // Render visuals
+  // Always render 2D views
   drawBB('bbc', s, d, r);
   drawStereonet('snc', s, d, r);
   drawMap('m1s', s, d, r, false);
   drawMap('m2s', a2.strike, a2.dip, a2.rake, true);
-  drawProfile('p1s', s, d, r, false);
-  drawProfile('p2s', a2.strike, a2.dip, a2.rake, true);
+
+  if (state.viewMode === '2d') {
+    drawProfile('p1s', s, d, r, false);
+    drawProfile('p2s', a2.strike, a2.dip, a2.rake, true);
+  } else {
+    // 3D block diagrams — async but fire-and-forget
+    draw3DBlock('p1c', s, d, r, false);
+    draw3DBlock('p2c', a2.strike, a2.dip, a2.rake, true);
+  }
 }
+
+// ─── View toggle button clicks ────────────────────────────────────────────────
+
+el('view-toggle').addEventListener('click', e => {
+  const btn = e.target.closest('.view-btn');
+  if (!btn) return;
+  const mode = btn.dataset.mode;
+  if (mode !== state.viewMode) setViewMode(mode);
+});
 
 // ─── Slider inputs ────────────────────────────────────────────────────────────
 

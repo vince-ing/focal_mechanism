@@ -302,6 +302,58 @@ input[type=range]::-webkit-slider-thumb {
 
 .card-body { padding: 16px; }
 
+/* ── 2D / 3D view toggle ──────────────────────────────────────────────────── */
+
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.view-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 3px 10px;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.view-btn + .view-btn {
+  border-left: 1px solid var(--border);
+}
+
+.view-btn.active {
+  background: var(--np1-light);
+  color: var(--np1);
+}
+
+.view-btn:hover:not(.active) {
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+/* ── 3D hint bar ──────────────────────────────────────────────────────────── */
+
+.hint-3d {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  padding: 8px 16px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  line-height: 1.4;
+}
+
 /* Projection row */
 .proj-row {
   display: grid;
@@ -328,7 +380,7 @@ input[type=range]::-webkit-slider-thumb {
   color: var(--text-3);
 }
 
-canvas { display: block; }
+canvas { display: block; max-width: 100%; }
 
 /* Legend */
 .legend {
@@ -393,7 +445,7 @@ canvas { display: block; }
 
 .b-ob { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
 
-svg, canvas { display: block; max-width: 100%; }
+svg { display: block; max-width: 100%; }
 
 /* Symbology */
 .sym-grid {

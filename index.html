@@ -173,27 +173,48 @@
         </div>
       </div>
 
-      <!-- Cross sections -->
+      <!-- Cross sections / Block diagrams -->
       <div class="card">
         <div class="card-head">
           <span class="card-title">Cross-Section Profiles</span>
-          <span class="card-tag">Perpendicular to strike</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="card-tag" id="profile-card-tag">Perpendicular to strike</span>
+            <!-- 2D / 3D toggle -->
+            <div class="view-toggle" id="view-toggle">
+              <button class="view-btn active" data-mode="2d">2D</button>
+              <button class="view-btn" data-mode="3d">3D</button>
+            </div>
+          </div>
         </div>
         <div class="two-col">
           <div class="viz-cell">
-            <svg id="p1s" width="260" height="190" viewBox="0 0 260 190"></svg>
+            <!-- 2D SVG -->
+            <svg id="p1s" width="260" height="190" viewBox="0 0 260 190" class="profile-2d"></svg>
+            <!-- 3D Canvas -->
+            <canvas id="p1c" class="profile-3d" width="260" height="220" style="display:none;cursor:grab"></canvas>
             <div class="viz-meta">
               <span class="viz-label" id="p1l">NP1 — Input plane</span>
               <span class="badge b-ob" id="p1b">—</span>
             </div>
           </div>
           <div class="viz-cell">
-            <svg id="p2s" width="260" height="190" viewBox="0 0 260 190"></svg>
+            <!-- 2D SVG -->
+            <svg id="p2s" width="260" height="190" viewBox="0 0 260 190" class="profile-2d"></svg>
+            <!-- 3D Canvas -->
+            <canvas id="p2c" class="profile-3d" width="260" height="220" style="display:none;cursor:grab"></canvas>
             <div class="viz-meta">
               <span class="viz-label" id="p2l">NP2 — Auxiliary</span>
               <span class="badge b-ob" id="p2b">—</span>
             </div>
           </div>
+        </div>
+        <!-- 3D hint -->
+        <div id="hint-3d" class="hint-3d" style="display:none">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;margin-top:1px">
+            <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M6 5v4M6 3.5v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          Drag to orbit · blocks offset along slip vector · colored plane = fault surface
         </div>
       </div>
 
