@@ -312,53 +312,35 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
   // ── Motion arrows ─────────────────────────────────────────────────────────
   const aColor = new T.Color(accentColor);
 
-  const slipHoriz = new T.Vector3(slip.x, 0, slip.z);
-  const horizMag  = slipHoriz.length();
-  const vertMag   = Math.abs(slip.y);
-  const totalMag  = Math.sqrt(horizMag * horizMag + vertMag * vertMag);
-  const hasDip    = totalMag > 0.001 && (vertMag  / totalMag) > 0.25;
-  const hasStrike = totalMag > 0.001 && (horizMag / totalMag) > 0.25;
+  // Use the rake angle to mathematically isolate components, ignoring 3D vector spread
+  const rakeRad = rad(rake);
+  const ssComp  = Math.cos(rakeRad);
+  const dsComp  = Math.sin(rakeRad);
+  
+  // Threshold to determine if a component is significant enough to draw
+  const hasStrike = Math.abs(ssComp) > 0.15;
+  const hasDip    = Math.abs(dsComp) > 0.15;
 
-  const arrowLen  = 0.45;
-  const arrowHead = 0.14;
-  const arrowW    = 0.06;
-
-  // ── Dip-slip arrows ───────────────────────────────────────────────────────
-  // Block box is always BX=1, BY=0.75, BZ=1.
-  // Front face is Z=+1. HW block is the one with higher Y (hanging wall, on
-  // the fault-normal side). FW block has lower Y.
-  //
-  // Place one arrow on the front face of each block:
-  //   • HW arrow: centred at (0, +BY*0.4, BZ+nudge) in block-local space
-  //   • FW arrow: centred at (0, -BY*0.4, BZ+nudge)
-  // Then add each block's world offset.
-  // Direction: straight up for the block moving up, straight down for the other.
+  // ── Dip-slip arrows (Front face) ──
   if (hasDip) {
-    const nudge = 0.06;
-    const BZ = 1.0;
-    const BY = 0.75;
-
-    // Project slip onto the front face plane (Z=1, normal = +Z)
-    // Remove the Z component so arrow lies flat on the front face
-    const frontNormal = new T.Vector3(0, 0, 1);
-    const slipOnFront = slip.clone().sub(frontNormal.clone().multiplyScalar(slip.dot(frontNormal))).normalize();
-    const slipOnFrontNeg = slipOnFront.clone().negate();
-
-    // HW block: upper part of front face
-    const hwFront = new T.Vector3(0,  BY * 0.35, BZ + nudge).add(hwOffset);
-    // FW block: lower part of front face
-    const fwFront = new T.Vector3(0, -BY * 0.35, BZ + nudge).add(fwOffset);
-
-    taggedAdd(st.scene, new T.ArrowHelper(slipOnFront,    hwFront.clone().addScaledVector(slipOnFront,    -arrowLen*0.5), arrowLen, aColor, arrowHead, arrowW));
-    taggedAdd(st.scene, new T.ArrowHelper(slipOnFrontNeg, fwFront.clone().addScaledVector(slipOnFrontNeg, -arrowLen*0.5), arrowLen, aColor, arrowHead, arrowW));
+    const frontFace = new T.Vector3(0, 0, 1);
+    
+    // Flatten the true slip vector onto the front face so the arrow lies perfectly flat on the surface
+    const slipOnFront = slip.clone().sub(frontFace.clone().multiplyScalar(slip.dot(frontFace))).normalize();
+    
+    addFaceArrow(T, st, hw, hwOffset, frontFace, slipOnFront, aColor);
+    addFaceArrow(T, st, fw, fwOffset, frontFace, slipOnFront.clone().negate(), aColor);
   }
 
-  // ── Strike-slip arrows: TOP face only, and only when no dip component ──
-  if (hasStrike && !hasDip) {
+  // ── Strike-slip arrows (Top face) ──
+  if (hasStrike) {
     const upFace  = new T.Vector3(0, 1, 0);
-    const slipTop = new T.Vector3(slip.x, 0, slip.z).normalize();
-    addFaceArrow(T, st, hw, hwOffset, upFace, slipTop,          aColor);
-    addFaceArrow(T, st, fw, fwOffset, upFace, slipTop.negate(), aColor);
+    
+    // Flatten the true slip vector onto the top face
+    const slipTop = slip.clone().sub(upFace.clone().multiplyScalar(slip.dot(upFace))).normalize();
+    
+    addFaceArrow(T, st, hw, hwOffset, upFace, slipTop, aColor);
+    addFaceArrow(T, st, fw, fwOffset, upFace, slipTop.clone().negate(), aColor);
   }
 
   startLoop(st);
