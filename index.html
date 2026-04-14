@@ -121,7 +121,6 @@
 
     <main>
 
-      <!-- Lower hemisphere projections -->
       <div class="card">
         <div class="card-head">
           <span class="card-title">Lower Hemisphere Projections</span>
@@ -149,7 +148,6 @@
         </div>
       </div>
 
-      <!-- Map traces -->
       <div class="card">
         <div class="card-head">
           <span class="card-title">Plan View — Map Traces</span>
@@ -171,15 +169,38 @@
             </div>
           </div>
         </div>
+        
+        <div class="card-footer">
+          <div class="leg-item">
+            <svg width="24" height="20" viewBox="0 0 24 20">
+              <line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2"/>
+              <polygon points="8,10 12,4 16,10" fill="currentColor"/>
+            </svg> Thrust / reverse teeth
+          </div>
+          <div class="leg-item">
+            <svg width="24" height="20" viewBox="0 0 24 20">
+              <line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2"/>
+              <line x1="12" y1="10" x2="12" y2="16" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="12" cy="16" r="1.5" fill="currentColor"/>
+            </svg> Normal hachures
+          </div>
+          <div class="leg-item">
+            <svg width="24" height="20" viewBox="0 0 24 20">
+              <line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2"/>
+              <line x1="6" y1="5" x2="18" y2="5" stroke="currentColor" stroke-width="1.5"/>
+              <polygon points="18,5 13,2 13,5" fill="currentColor"/>
+              <line x1="18" y1="15" x2="6" y2="15" stroke="currentColor" stroke-width="1.5"/>
+              <polygon points="6,15 11,18 11,15" fill="currentColor"/>
+            </svg> Strike-slip shear
+          </div>
+        </div>
       </div>
 
-      <!-- Cross sections / Block diagrams -->
       <div class="card">
         <div class="card-head">
           <span class="card-title">Cross-Section Profiles</span>
           <div style="display:flex;align-items:center;gap:10px">
             <span class="card-tag" id="profile-card-tag">Perpendicular to strike</span>
-            <!-- 2D / 3D toggle -->
             <div class="view-toggle" id="view-toggle">
               <button class="view-btn active" data-mode="2d">2D</button>
               <button class="view-btn" data-mode="3d">3D</button>
@@ -204,110 +225,30 @@
             </div>
           </div>
         </div>
-          <div class="viz-cell">
-            <!-- 2D SVG -->
-            <svg id="p2s" width="260" height="190" viewBox="0 0 260 190" class="profile-2d"></svg>
-            <!-- 3D Canvas -->
-            <canvas id="p2c" class="profile-3d" width="260" height="220" style="display:none;cursor:grab"></canvas>
-            <div class="viz-meta">
-              <span class="viz-label" id="p2l">NP2 — Auxiliary</span>
-              <span class="badge b-ob" id="p2b">—</span>
-            </div>
-          </div>
-        </div>
-        <!-- 3D hint -->
-        <div id="hint-3d" class="hint-3d" style="display:none">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;margin-top:1px">
-            <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/>
-            <path d="M6 5v4M6 3.5v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          </svg>
-          Drag to orbit · blocks offset along slip vector · colored plane = fault surface
-        </div>
-      </div>
 
-      <!-- Symbology guide -->
-      <div class="card">
-        <div class="card-head">
-          <span class="card-title">Symbology Reference</span>
+        <div class="card-footer profile-2d">
+          <div class="leg-item">
+            <svg width="16" height="16" viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="8" cy="8" r="2.5" fill="currentColor"/>
+            </svg> Motion out of page
+          </div>
+          <div class="leg-item">
+            <svg width="16" height="16" viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="3.5" y1="3.5" x2="12.5" y2="12.5" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="3.5" y1="12.5" x2="12.5" y2="3.5" stroke="currentColor" stroke-width="1.5"/>
+            </svg> Motion into page
+          </div>
         </div>
-        <div class="sym-grid">
-          <div class="sym-item">
-            <div class="sym-icon">
-              <svg width="32" height="32" viewBox="0 0 32 32">
-                <circle cx="16" cy="16" r="13" fill="#1a1916"/>
-              </svg>
-            </div>
-            <div>
-              <div class="sym-name">Compression quadrant</div>
-              <div class="sym-desc">First motion upward (compressive). Plotted dark on beach ball.</div>
-            </div>
-          </div>
-          <div class="sym-item">
-            <div class="sym-icon">
-              <svg width="32" height="32" viewBox="0 0 32 32">
-                <circle cx="16" cy="16" r="13" fill="none" stroke="var(--border-strong)" stroke-width="1.5"/>
-              </svg>
-            </div>
-            <div>
-              <div class="sym-name">Dilatation quadrant</div>
-              <div class="sym-desc">First motion downward. Plotted white (light) on beach ball.</div>
-            </div>
-          </div>
-          <div class="sym-item">
-            <div class="sym-icon">
-              <svg width="34" height="34" viewBox="0 0 34 34">
-                <line x1="17" y1="4" x2="17" y2="30" stroke="var(--np1)" stroke-width="2.5"/>
-                <polygon points="17,13 25,18 17,23" fill="var(--np1)"/>
-              </svg>
-            </div>
-            <div>
-              <div class="sym-name">Thrust / reverse teeth</div>
-              <div class="sym-desc">Teeth point toward hanging wall (upthrown block).</div>
-            </div>
-          </div>
-          <div class="sym-item">
-            <div class="sym-icon">
-              <svg width="34" height="34" viewBox="0 0 34 34">
-                <line x1="17" y1="4" x2="17" y2="30" stroke="var(--np1)" stroke-width="2.5"/>
-                <line x1="17" y1="14" x2="26" y2="14" stroke="var(--np1)" stroke-width="1.5"/>
-                <circle cx="26" cy="14" r="2" fill="var(--np1)"/>
-                <line x1="17" y1="22" x2="26" y2="22" stroke="var(--np1)" stroke-width="1.5"/>
-                <circle cx="26" cy="22" r="2" fill="var(--np1)"/>
-              </svg>
-            </div>
-            <div>
-              <div class="sym-name">Normal hachures</div>
-              <div class="sym-desc">Ticks point toward hanging wall (downthrown block).</div>
-            </div>
-          </div>
-          <div class="sym-item">
-            <div class="sym-icon">
-              <svg width="34" height="34" viewBox="0 0 34 34">
-                <line x1="17" y1="4" x2="17" y2="30" stroke="var(--np1)" stroke-width="2.5"/>
-                <line x1="12" y1="11" x2="12" y2="23" stroke="var(--np1)" stroke-width="1.5"/>
-                <polygon points="12,11 8,17 12,17" fill="var(--np1)"/>
-                <line x1="22" y1="11" x2="22" y2="23" stroke="var(--np1)" stroke-width="1.5"/>
-                <polygon points="22,23 26,17 22,17" fill="var(--np1)"/>
-              </svg>
-            </div>
-            <div>
-              <div class="sym-name">Strike-slip shear</div>
-              <div class="sym-desc">Half-arrows show relative lateral block motion.</div>
-            </div>
-          </div>
-          <div class="sym-item">
-            <div class="sym-icon">
-              <svg width="34" height="34" viewBox="0 0 34 34">
-                <line x1="4" y1="17" x2="14" y2="17" stroke="var(--text-2)" stroke-width="2"/>
-                <polygon points="14,17 10,13 10,21" fill="var(--text-2)"/>
-                <line x1="30" y1="17" x2="20" y2="17" stroke="var(--text-2)" stroke-width="2"/>
-                <polygon points="20,17 24,13 24,21" fill="var(--text-2)"/>
-              </svg>
-            </div>
-            <div>
-              <div class="sym-name">Regional stress</div>
-              <div class="sym-desc">Arrows indicate principal compression or extension direction.</div>
-            </div>
+        
+        <div id="hint-3d" class="card-footer" style="display:none; justify-content: flex-start;">
+          <div class="leg-item">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;margin-top:1px">
+              <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M6 5v4M6 3.5v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            Drag to orbit · blocks offset along slip vector · colored plane = fault surface
           </div>
         </div>
       </div>

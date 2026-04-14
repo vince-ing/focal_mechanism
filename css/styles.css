@@ -300,8 +300,6 @@ input[type=range]::-webkit-slider-thumb {
 
 .card-tag { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
 
-.card-body { padding: 16px; }
-
 /* ── 2D / 3D view toggle ──────────────────────────────────────────────────── */
 
 .view-toggle {
@@ -337,21 +335,6 @@ input[type=range]::-webkit-slider-thumb {
 .view-btn:hover:not(.active) {
   background: var(--surface);
   color: var(--text-2);
-}
-
-/* ── 3D hint bar ──────────────────────────────────────────────────────────── */
-
-.hint-3d {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-3);
-  padding: 8px 16px 10px;
-  border-top: 1px solid var(--border);
-  background: var(--surface-2);
-  line-height: 1.4;
 }
 
 /* Projection row */
@@ -447,33 +430,24 @@ canvas { display: block; max-width: 100%; }
 
 svg { display: block; max-width: 100%; }
 
-/* Symbology */
-.sym-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1px;
-  background: var(--border);
-}
-
-.sym-item {
-  background: var(--surface);
-  padding: 14px 16px;
+/* Card Footers & Inline Legends */
+.card-footer {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.sym-icon {
-  width: 44px; height: 44px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
 }
 
-.sym-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
-.sym-desc { font-size: 11px; color: var(--text-3); line-height: 1.5; }
+.card-footer .leg-item {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+}
 
 /* Rake reference table */
 .rake-table {
