@@ -228,6 +228,10 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
   const hwColor     = dark ? '#3e3d3a' : '#d5d2cc';
   const fwColor     = dark ? '#1e1d1b' : '#f0eeea';
 
+  // Zoom factor: smaller is larger. 
+  const frustum = 1.5; 
+  const aspect  = W / H;
+
   // ── Init renderer/scene/camera once per canvas ──
   if (!st.renderer) {
     st.renderer = new T.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -235,8 +239,6 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
     st.renderer.setClearColor(0x000000, 0);
     st.scene = new T.Scene();
 
-    const aspect  = W / H;
-    const frustum = 1.9;
     st.camera = new T.OrthographicCamera(
       -frustum * aspect,  frustum * aspect,
        frustum,          -frustum,
@@ -251,7 +253,15 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
     dir.position.set(3, 6, 4);
     st.scene.add(dir);
   }
+  
   st.renderer.setSize(W, H, false);
+  
+  // ALWAYS update camera bounds to match current CSS canvas size
+  st.camera.left = -frustum * aspect;
+  st.camera.right = frustum * aspect;
+  st.camera.top = frustum;
+  st.camera.bottom = -frustum;
+  st.camera.updateProjectionMatrix();
 
   disposeObjects(st);
 
@@ -311,37 +321,77 @@ export async function draw3DBlock(canvasId, strike, dip, rake, isAux) {
 
   // ── Motion arrows ─────────────────────────────────────────────────────────
   const aColor = new T.Color(accentColor);
-
-  // Use the rake angle to mathematically isolate components, ignoring 3D vector spread
   const rakeRad = rad(rake);
   const ssComp  = Math.cos(rakeRad);
   const dsComp  = Math.sin(rakeRad);
   
-  // Threshold to determine if a component is significant enough to draw
   const hasStrike = Math.abs(ssComp) > 0.15;
   const hasDip    = Math.abs(dsComp) > 0.15;
 
-  // ── Dip-slip arrows (Front face) ──
+  // ── Dip-slip arrows (Profile face) ──
   if (hasDip) {
-    const frontFace = new T.Vector3(0, 0, 1);
+    const strikeRad = rad(strike);
+    // Dynamically switch the dip cross-section to the Right face (X=1) if strike is mostly East-West
+    const useRightFace = Math.abs(Math.sin(strikeRad)) > Math.abs(Math.cos(strikeRad));
+    const dipFace = useRightFace ? new T.Vector3(1, 0, 0) : new T.Vector3(0, 0, 1);
     
-    // Flatten the true slip vector onto the front face so the arrow lies perfectly flat on the surface
-    const slipOnFront = slip.clone().sub(frontFace.clone().multiplyScalar(slip.dot(frontFace))).normalize();
-    
-    addFaceArrow(T, st, hw, hwOffset, frontFace, slipOnFront, aColor);
-    addFaceArrow(T, st, fw, fwOffset, frontFace, slipOnFront.clone().negate(), aColor);
+    // Cross product defines the exact intersection line (fault seam) on that face
+    let traceDip = new T.Vector3().crossVectors(faultNormal, dipFace);
+    if (traceDip.lengthSq() > 0.001) {
+      traceDip.normalize();
+      // Align arrow exactly to the trace, matching the slip vector's general direction
+      const sign = slip.dot(traceDip) >= 0 ? 1 : -1;
+      const dsDir = traceDip.multiplyScalar(sign);
+      
+      addFaceArrow(T, st, hw, hwOffset, dipFace, dsDir, aColor);
+      addFaceArrow(T, st, fw, fwOffset, dipFace, dsDir.clone().negate(), aColor);
+    }
   }
 
   // ── Strike-slip arrows (Top face) ──
   if (hasStrike) {
     const upFace  = new T.Vector3(0, 1, 0);
     
-    // Flatten the true slip vector onto the top face
-    const slipTop = slip.clone().sub(upFace.clone().multiplyScalar(slip.dot(upFace))).normalize();
-    
-    addFaceArrow(T, st, hw, hwOffset, upFace, slipTop, aColor);
-    addFaceArrow(T, st, fw, fwOffset, upFace, slipTop.clone().negate(), aColor);
+    // Cross product guarantees the top arrows are perfectly parallel to the fault trace
+    let traceTop = new T.Vector3().crossVectors(faultNormal, upFace);
+    if (traceTop.lengthSq() > 0.001) {
+      traceTop.normalize();
+      const sign = slip.dot(traceTop) >= 0 ? 1 : -1;
+      const ssDir = traceTop.multiplyScalar(sign);
+      
+      addFaceArrow(T, st, hw, hwOffset, upFace, ssDir, aColor);
+      addFaceArrow(T, st, fw, fwOffset, upFace, ssDir.clone().negate(), aColor);
+    }
   }
+
+  // ── North Arrow ───────────────────────────────────────────────────────────
+  // Offset further out: X=-1.6, Z=1.6
+  const nOrigin = new T.Vector3(-1.6, -0.75, 1.6); 
+  const nDir    = new T.Vector3(0, 0, -1);
+  const nLen    = 0.5;
+  const uiColor = new T.Color(edgeColor);
+  
+  const nArrow = new T.ArrowHelper(nDir, nOrigin, nLen, uiColor, 0.15, 0.1);
+  taggedAdd(st.scene, nArrow);
+
+  const canvasN = document.createElement('canvas');
+  canvasN.width = 64; 
+  canvasN.height = 64;
+  const ctxN = canvasN.getContext('2d');
+  ctxN.font = 'bold 36px "IBM Plex Sans", sans-serif';
+  ctxN.fillStyle = edgeColor;
+  ctxN.textAlign = 'center';
+  ctxN.textBaseline = 'middle';
+  ctxN.fillText('N', 32, 32);
+  
+  const texN = new T.CanvasTexture(canvasN);
+  const matN = new T.SpriteMaterial({ map: texN, depthTest: false, transparent: true });
+  const spriteN = new T.Sprite(matN);
+  
+  spriteN.position.copy(nOrigin).add(new T.Vector3(0, 0, -nLen - 0.15));
+  spriteN.scale.set(0.35, 0.35, 0.35);
+  spriteN.renderOrder = 999; 
+  taggedAdd(st.scene, spriteN);
 
   startLoop(st);
 }
